@@ -2,7 +2,10 @@
 """make.fun entry: copy entry.png (next to this file) into the output directory.
 
 Output directory is $MAKEFUN_OUTPUT_DIR when set, otherwise /output.
-The directory is created if missing. Standard library only, no network.
+The directory is created if needed. Standard library only, no network.
+
+Refuses to run (exit 2) when the source image is missing or larger than
+MAX_BYTES.
 """
 
 import os
@@ -10,24 +13,36 @@ import shutil
 import sys
 from pathlib import Path
 
+SOURCE_NAME = "entry.png"
 DEFAULT_OUTPUT_DIR = "/output"
-ENTRY_NAME = "entry.png"
+MAX_BYTES = 1048576
+
+
+def fail(message: str) -> int:
+    print(f"error: {message}", file=sys.stderr)
+    return 2
 
 
 def main() -> int:
-    src = Path(__file__).resolve().parent / ENTRY_NAME
-    if not src.is_file():
-        print(f"error: missing source image: {src}", file=sys.stderr)
-        return 1
+    source = Path(__file__).resolve().parent / SOURCE_NAME
 
-    out_dir = Path(os.environ.get("MAKEFUN_OUTPUT_DIR") or DEFAULT_OUTPUT_DIR).expanduser()
-    out_dir.mkdir(parents=True, exist_ok=True)
+    if not source.is_file():
+        return fail(f"source image not found: {source}")
 
-    dst = out_dir / ENTRY_NAME
-    shutil.copyfile(src, dst)
-    print(f"copied {src} -> {dst}")
+    size = source.stat().st_size
+    if size > MAX_BYTES:
+        return fail(f"source image too large: {size} bytes (limit {MAX_BYTES})")
+
+    output_dir = Path(os.environ.get("MAKEFUN_OUTPUT_DIR") or DEFAULT_OUTPUT_DIR)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    destination = output_dir / SOURCE_NAME
+    shutil.copyfile(source, destination)
+
+    copied = destination.stat().st_size
+    print(f"copied {copied} bytes -> {destination}")
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    sys.exit(main())
